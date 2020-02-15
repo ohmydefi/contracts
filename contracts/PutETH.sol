@@ -224,7 +224,7 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
         // to this contract
         uint256 underlyingAmount = msg.value.div(1e18);
         // Transfers the strike tokens back in exchange
-        _burn(msg.sender, underlyingAmount);
+        _burn(msg.sender, msg.value);
         require(strikeAsset.transfer(msg.sender, underlyingAmount.mul(strikePrice)), "Couldn't transfer strike tokens to caller");
     }
 
