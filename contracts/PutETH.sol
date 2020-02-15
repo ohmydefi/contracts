@@ -4,7 +4,6 @@ import "@openzeppelin/upgrades/contracts/Initializable.sol";
 import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20Detailed.sol";
 import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
-import "./IWETH.sol";
 
 
 /**
@@ -44,22 +43,12 @@ import "./IWETH.sol";
  * - Will sell 1 DAI for 1 USDC (the strike price) each.
  * - Will burn the corresponding amounty of put tokens.
  */
-contract ETHOption is Initializable, ERC20Detailed, ERC20 {
+contract PutETH is Initializable, ERC20Detailed, ERC20 {
 
     /**
-     * The asset used as the underlying token, e.g. DAI
+     * The strike asset for this vault, e.g. USDC
      */
-    IERC20 public underlyingAsset;
-
-    /**
-     * How many decimals does the underlying token have? E.g.: 18
-     */
-    uint8 public underlyingAssetDecimals;
-
-    /**
-     * The strike asset for this vault
-     */
-    IWETH public strikeAsset;
+    IERC20 public strikeAsset;
 
     /**
      * The sell price of each unit of strikeAsset; given in units
@@ -95,16 +84,12 @@ contract ETHOption is Initializable, ERC20Detailed, ERC20 {
     function initializeInTestMode(
         string calldata name,
         string calldata symbol,
-        IERC20 _underlyingAsset,
-        uint8 _underlyingAssetDecimals,
-        IWETH _strikeAsset,
+        IERC20 _strikeAsset,
         uint256 _strikePrice) external initializer
     {
         _initialize(
             name,
             symbol,
-            _underlyingAsset,
-            _underlyingAssetDecimals,
             _strikeAsset,
             _strikePrice,
             ~uint256(0)
@@ -119,17 +104,13 @@ contract ETHOption is Initializable, ERC20Detailed, ERC20 {
     function initialize(
         string calldata name,
         string calldata symbol,
-        IERC20 _underlyingAsset,
-        uint8 _underlyingAssetDecimals,
-        IWETH _strikeAsset,
+        IERC20 _strikeAsset,
         uint256 _strikePrice,
         uint256 _expirationBlockNumber) external initializer
     {
         _initialize(
             name,
             symbol,
-            _underlyingAsset,
-            _underlyingAssetDecimals,
             _strikeAsset,
             _strikePrice,
             _expirationBlockNumber
@@ -188,14 +169,17 @@ contract ETHOption is Initializable, ERC20Detailed, ERC20 {
      * to write option tokens.
      *
      * Options can only be minted while the series is NOT expired.
+     *
+     * @param amount The amount option tokens to be issued; this will lock
+     * for instance amount * strikePrice units of strikeToken into this
+     * contract
      */
-    function mint() external payable beforeExpiration {
-        uint256 amount = msg.value;
+    function mint(uint256 amount) external beforeExpiration {
         lockedBalance[msg.sender] = lockedBalance[msg.sender].add(amount);
-        _mint(msg.sender, amount);
+        _mint(msg.sender, amount.mul(1e18));
 
         // Locks the strike asset inside this contract
-        strikeAsset.deposit.value(amount)();
+        require(strikeAsset.transferFrom(msg.sender, address(this), amount.mul(strikePrice)), "Couldn't transfer strike tokens from caller");
     }
 
     /**
@@ -207,17 +191,14 @@ contract ETHOption is Initializable, ERC20Detailed, ERC20 {
      * Options can only be burned while the series is NOT expired.
      */
     function burn(uint256 amount) external beforeExpiration {
-        address payable recipient = msg.sender;
-        require(amount <= lockedBalance[recipient], "Not enough underlying balance");
+        require(amount <= lockedBalance[msg.sender], "Not enough underlying balance");
 
         // Burn option tokens
-        lockedBalance[msg.sender] = lockedBalance[recipient].sub(amount);
-        _burn(recipient, amount);
+        lockedBalance[msg.sender] = lockedBalance[msg.sender].sub(amount);
+        _burn(msg.sender, amount.mul(1e18));
 
         // Unlocks the strike token
-        strikeAsset.withdraw(amount);
-        // Isso não está funcionando
-        recipient.send(amount);
+        require(strikeAsset.transfer(msg.sender, amount.mul(strikePrice)), "Couldn't transfer back strike tokens to caller");
     }
 
     /**
@@ -237,19 +218,14 @@ contract ETHOption is Initializable, ERC20Detailed, ERC20 {
      * this contract as a payment for the strike tokens
      *
      * Options can only be exchanged while the series is NOT expired.
-     *
-     * @param amount The amount of underlying tokens to be sold for strike
-     * tokens
      */
-    function exchange(uint256 amount) external beforeExpiration {
+    function exchange() external payable beforeExpiration {
         // Gets the payment from the caller by transfering them
         // to this contract
-        uint256 underlyingAmount = amount * 10 ** uint256(underlyingAssetDecimals);
-        require(underlyingAsset.transferFrom(msg.sender, address(this), underlyingAmount), "Couldn't transfer strike tokens from caller");
-
+        uint256 underlyingAmount = msg.value.div(1e18);
         // Transfers the strike tokens back in exchange
-        _burn(msg.sender, amount.mul(1e18));
-        strikeAsset.withdraw(amount.mul(strikePrice), msg.sender);
+        _burn(msg.sender, underlyingAmount);
+        require(strikeAsset.transfer(msg.sender, underlyingAmount.mul(strikePrice)), "Couldn't transfer strike tokens to caller");
     }
 
     /**
@@ -269,7 +245,7 @@ contract ETHOption is Initializable, ERC20Detailed, ERC20 {
      * locked inside this contract
      */
     function underlyingBalance() external view returns (uint256) {
-        return underlyingAsset.balanceOf(address(this));
+        return address(this).balance;
     }
 
     /**
@@ -278,17 +254,6 @@ contract ETHOption is Initializable, ERC20Detailed, ERC20 {
      */
     function strikeBalance() external view returns (uint256) {
         return strikeAsset.balanceOf(address(this));
-    }
-
-    /**
-     * Overrides the OZ ERC20._transfer() function to intercept and block
-     * transfers after expiration time.
-     */
-    function _transfer(address sender, address recipient, uint256 amount) internal {
-        if (_hasExpired()) {
-            revert("Contract has expired");
-        }
-        super._transfer(sender, recipient, amount);
     }
 
     function _hasExpired() internal view returns (bool) {
@@ -307,17 +272,16 @@ contract ETHOption is Initializable, ERC20Detailed, ERC20 {
             strikeToReceive = strikeAmount.mul(strikePrice);
 
             uint256 underlyingAmount = amount - strikeAmount;
-            underlyingToReceive = underlyingAmount.mul(10 ** uint256(underlyingAssetDecimals));
+            underlyingToReceive = underlyingAmount;
         }
 
         // Unlocks the underlying token
         lockedBalance[msg.sender] = lockedBalance[msg.sender].sub(amount);
         if (strikeToReceive > 0) {
-//            require(strikeAsset.transfer(msg.sender, strikeToReceive), "Couldn't transfer back strike tokens to caller");
-            strikeAsset.withdraw(strikeToReceive, msg.sender);
+            require(strikeAsset.transfer(msg.sender, strikeToReceive), "Couldn't transfer back strike tokens to caller");
         }
         if (underlyingToReceive > 0) {
-            require(underlyingAsset.transfer(msg.sender, underlyingToReceive), "Couldn't transfer back underlying tokens to caller");
+            address(msg.sender).transfer(underlyingToReceive);
         }
     }
 
@@ -327,16 +291,12 @@ contract ETHOption is Initializable, ERC20Detailed, ERC20 {
     function _initialize(
         string memory name,
         string memory symbol,
-        IERC20 _underlyingAsset,
-        uint8 _underlyingAssetDecimals,
-        IWETH _strikeAsset,
+        IERC20 _strikeAsset,
         uint256 _strikePrice,
         uint256 _expirationBlockNumber) private
     {
         ERC20Detailed.initialize(name, symbol, 18);
 
-        underlyingAsset = _underlyingAsset;
-        underlyingAssetDecimals = _underlyingAssetDecimals;
         strikeAsset = _strikeAsset;
         strikePrice = _strikePrice;
         expirationBlockNumber = _expirationBlockNumber;
