@@ -57,6 +57,11 @@ contract CallETH is Initializable, ERC20Detailed, ERC20 {
     uint256 public strikePrice;
 
     /**
+     * StrikePrice's Number of Decimals
+     */
+    uint256 public strikePriceDecimals;
+
+    /**
      * This option series is considered expired starting from this block
      * number
      */
@@ -85,14 +90,17 @@ contract CallETH is Initializable, ERC20Detailed, ERC20 {
         string calldata name,
         string calldata symbol,
         IERC20 _strikeAsset,
-        uint256 _strikePrice) external initializer
+        uint256 _strikePrice,
+        uint256 _strikePriceDecimals,
+        uint256 _expirationBlockNumber) external initializer
     {
         _initialize(
             name,
             symbol,
             _strikeAsset,
             _strikePrice,
-            ~uint256(0)
+            _strikePriceDecimals,
+            _expirationBlockNumber
         );
         isTestingDeployment = true;
     }
@@ -106,6 +114,7 @@ contract CallETH is Initializable, ERC20Detailed, ERC20 {
         string calldata symbol,
         IERC20 _strikeAsset,
         uint256 _strikePrice,
+        uint256 _strikePriceDecimals,
         uint256 _expirationBlockNumber) external initializer
     {
         _initialize(
@@ -113,6 +122,7 @@ contract CallETH is Initializable, ERC20Detailed, ERC20 {
             symbol,
             _strikeAsset,
             _strikePrice,
+            _strikePriceDecimals,
             _expirationBlockNumber
         );
     }
@@ -216,11 +226,12 @@ contract CallETH is Initializable, ERC20Detailed, ERC20 {
     function exchange(uint256 amount) external beforeExpiration {
         // Gets the payment from the caller by transfering them
         // to this contract
-        uint256 underlyingAmount = amount.mul(strikePrice);
+        uint256 underlyingAmount = amount.mul(strikePrice).div(10 ** strikePriceDecimals);
         // Transfers the strike tokens back in exchange
         require(strikeAsset.transferFrom(msg.sender, address(this), underlyingAmount), "Couldn't transfer strike tokens from caller");
-        _burn(msg.sender, underlyingAmount);
-        require(msg.sender.send(amount.mul(1e18)), "Couldn't transfer underlying tokens to caller");
+        _burn(msg.sender, amount);
+
+        require(msg.sender.send(amount), "Couldn't transfer underlying tokens to caller");
     }
 
     /**
@@ -288,12 +299,14 @@ contract CallETH is Initializable, ERC20Detailed, ERC20 {
         string memory symbol,
         IERC20 _strikeAsset,
         uint256 _strikePrice,
+        uint256 _strikePriceDecimals,
         uint256 _expirationBlockNumber) private
     {
         ERC20Detailed.initialize(name, symbol, 18);
 
         strikeAsset = _strikeAsset;
         strikePrice = _strikePrice;
+        strikePriceDecimals = _strikePriceDecimals;
         expirationBlockNumber = _expirationBlockNumber;
     }
 
