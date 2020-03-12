@@ -27,8 +27,8 @@ module.exports = {
           process.env.ADDRESS_INDEX
         ),
       network_id: "1",
-      gasPrice: 4000000000,
-      gas: 4100000
+      gasPrice: 120000000000,
+      gas: 310000
     },
     kovan: {
       provider: () =>
@@ -46,7 +46,9 @@ module.exports = {
           "https://rinkeby.infura.io/v3/" + process.env.INFURA_PROJECT_ID,
           process.env.ADDRESS_INDEX
         ),
-      network_id: 4
+      network_id: 4,
+      gas: 10000000,
+      gasPrice: 1e11
     }
   },
 
