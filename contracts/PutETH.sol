@@ -57,6 +57,11 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
     uint256 public strikePrice;
 
     /**
+     * The number of deciamls of StrikePrice; can't be higher than 6.
+     */
+    uint256 public strikePriceDecimals;
+
+    /**
      * This option series is considered expired starting from this block
      * number
      */
@@ -85,13 +90,15 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
         string calldata name,
         string calldata symbol,
         IERC20 _strikeAsset,
-        uint256 _strikePrice) external initializer
+        uint256 _strikePrice,
+        uint256 _strikePriceDecimals) external initializer
     {
         _initialize(
             name,
             symbol,
             _strikeAsset,
             _strikePrice,
+            _strikePriceDecimals,
             ~uint256(0)
         );
         isTestingDeployment = true;
@@ -106,6 +113,7 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
         string calldata symbol,
         IERC20 _strikeAsset,
         uint256 _strikePrice,
+        uint256 _strikePriceDecimals,
         uint256 _expirationBlockNumber) external initializer
     {
         _initialize(
@@ -113,6 +121,7 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
             symbol,
             _strikeAsset,
             _strikePrice,
+            _strikePriceDecimals,
             _expirationBlockNumber
         );
     }
@@ -176,10 +185,11 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
      */
     function mint(uint256 amount) external beforeExpiration {
         lockedBalance[msg.sender] = lockedBalance[msg.sender].add(amount);
-        _mint(msg.sender, amount.mul(1e18));
+        _mint(msg.sender, amount);
 
+        uint256 amountToTransfer = amount.mul(strikePrice).div(10 ** strikePriceDecimals);
         // Locks the strike asset inside this contract
-        require(strikeAsset.transferFrom(msg.sender, address(this), amount.mul(strikePrice)), "Couldn't transfer strike tokens from caller");
+        require(strikeAsset.transferFrom(msg.sender, address(this), amountToTransfer), "Couldn't transfer strike tokens from caller");
     }
 
     /**
@@ -222,10 +232,10 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
     function exchange() external payable beforeExpiration {
         // Gets the payment from the caller by transfering them
         // to this contract
-        uint256 underlyingAmount = msg.value.div(1e18);
+        uint256 underlyingAmount = msg.value.mul(strikePrice).div(10 ** strikePriceDecimals);
         // Transfers the strike tokens back in exchange
         _burn(msg.sender, msg.value);
-        require(strikeAsset.transfer(msg.sender, underlyingAmount.mul(strikePrice)), "Couldn't transfer strike tokens to caller");
+        require(strikeAsset.transfer(msg.sender, underlyingAmount), "Couldn't transfer strike tokens to caller");
     }
 
     /**
@@ -293,12 +303,14 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
         string memory symbol,
         IERC20 _strikeAsset,
         uint256 _strikePrice,
+        uint256 _strikePriceDecimals,
         uint256 _expirationBlockNumber) private
     {
         ERC20Detailed.initialize(name, symbol, 18);
 
         strikeAsset = _strikeAsset;
         strikePrice = _strikePrice;
+        strikePriceDecimals = _strikePriceDecimals;
         expirationBlockNumber = _expirationBlockNumber;
     }
 

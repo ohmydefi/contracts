@@ -22,6 +22,7 @@ npx oz push
 
 # Creates a fake DAI and assign 1000 units to my address
 npx oz create @openzeppelin/contracts-ethereum-package/StandaloneERC20 --init initialize --args "\"Fake DAI\",DAI,18,1000000000000000000000,$MY_ADDRESS,[],[]"
+
 DAI_ADDRESS=`cat $OZ_FILE | jq '.proxies["@openzeppelin/contracts-ethereum-package/StandaloneERC20"][0].address' -r`
 
 # Creates a fake USDC and assign 1000 units to my address

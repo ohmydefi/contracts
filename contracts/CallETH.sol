@@ -172,7 +172,7 @@ contract CallETH is Initializable, ERC20Detailed, ERC20 {
      *
      */
     function mint() external payable beforeExpiration {
-        lockedBalance[msg.sender] = lockedBalance[msg.sender].add(msg.value.div(1e18));
+        lockedBalance[msg.sender] = lockedBalance[msg.sender].add(msg.value);
         _mint(msg.sender, msg.value);
     }
 

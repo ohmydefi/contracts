@@ -1,23 +1,19 @@
 {
   "manifestVersion": "2.2",
   "contracts": {
-    "Option": "Option",
-    "ETHOption": "ETHOption"
+    "CallETH": "CallETH",
+    "PutETH": "PutETH"
   },
   "dependencies": {
-    "@openzeppelin/contracts-ethereum-package": "^2.3.0"
+    "@openzeppelin/contracts-ethereum-package": "^2.4.0"
   },
-  "name": "contracts",
+  "name": "ro",
   "version": "1.0.0",
-  "telemetryOptIn": true,
   "compiler": {
     "manager": "openzeppelin",
-    "solcVersion": "0.5.11",
     "compilerSettings": {
-      "optimizer": {
-        "enabled": false,
-        "runs": "200"
-      }
-    }
+      "optimizer": {}
+    },
+    "solcVersion": "0.5.11"
   }
 }
