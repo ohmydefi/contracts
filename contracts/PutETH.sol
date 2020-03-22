@@ -253,7 +253,7 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
      */
     function withdraw() external afterExpiration {
         uint256 amount = lockedBalance[msg.sender];
-        require(amount > 0, "You do not balance to withdraw");
+        require(amount > 0, "You do not have balance to withdraw");
         _redeem(amount);
     }
 

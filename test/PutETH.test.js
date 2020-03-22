@@ -1,6 +1,6 @@
 const { TestHelper } = require("@openzeppelin/cli");
 const { Contracts, ZWeb3 } = require("@openzeppelin/upgrades");
-const BN = require('bn.js');
+const BN = require("bn.js");
 
 ZWeb3.initialize(web3.currentProvider);
 
@@ -28,7 +28,15 @@ contract("PutETH", function(accounts) {
 
     mockStrikeAsset = await this.project.createProxy(StandaloneERC20, {
       initMethod: "initialize",
-      initArgs: ["Fake StrikeAsset", "StrikeAsset", 18, (270e18).toString(), sellerAddress, [], []]
+      initArgs: [
+        "Fake StrikeAsset",
+        "StrikeAsset",
+        18,
+        (270e18).toString(),
+        sellerAddress,
+        [],
+        []
+      ]
     });
 
     puteth = await this.project.createProxy(PutETH, {
@@ -46,24 +54,33 @@ contract("PutETH", function(accounts) {
 
   async function txCost(tx) {
     try {
-      const txHash = tx.transactionHash
-      const gasUsed = new BN(tx.gasUsed)
-      const txInfo = await ZWeb3.getTransaction(txHash)
-      const gasPrice = new BN(txInfo.gasPrice)
-      return gasUsed.mul(gasPrice)
-    } catch(err) {
-      return err
+      const txHash = tx.transactionHash;
+      const gasUsed = new BN(tx.gasUsed);
+      const txInfo = await ZWeb3.getTransaction(txHash);
+      const gasPrice = new BN(txInfo.gasPrice);
+      return gasUsed.mul(gasPrice);
+    } catch (err) {
+      return err;
     }
   }
 
-  async function checkBalances(account, options, strikeAsset, underlyingAsset) {
+  async function checkBalances(
+    account,
+    options,
+    strikeAsset,
+    underlyingAsset,
+    show
+  ) {
     if (options !== null) {
       const optionsBalance = await puteth.methods.balanceOf(account).call();
+      if (show) console.log("optionsBalance", optionsBalance);
       optionsBalance.should.be.equal(options);
     }
 
     if (strikeAsset !== null) {
-      const strikeAssetBalance = await mockStrikeAsset.methods.balanceOf(account).call();
+      const strikeAssetBalance = await mockStrikeAsset.methods
+        .balanceOf(account)
+        .call();
       strikeAssetBalance.should.be.equal(strikeAsset);
     }
 
@@ -97,7 +114,12 @@ contract("PutETH", function(accounts) {
 
     await puteth.methods.mint((1e17).toString()).send({ from: sellerAddress });
 
-    await checkBalances(sellerAddress, (1e17).toString(), (270e18 -270e17).toString(), "0");
+    await checkBalances(
+      sellerAddress,
+      (1e17).toString(),
+      (270e18 - 270e17).toString(),
+      "0"
+    );
     // await checkBalances(daiHolder, "0", "0", "100000000000000000000");
   }
 
@@ -235,8 +257,10 @@ contract("PutETH", function(accounts) {
         // await mockDAI.methods
         //   .approve(option.address, "1000000000000000000")
         //   .send({ from: daiHolder });
-         
-        await puteth.methods.exchange().send({ from: sellerAddress, value: (1e18).toString() });
+
+        await puteth.methods
+          .exchange()
+          .send({ from: sellerAddress, value: (1e18).toString() });
         await checkBalances(sellerAddress, "0", (270e18).toString(), "0");
         // await checkBalances(daiHolder, "0", "1000001", "99000000000000000000");
       }
@@ -248,12 +272,13 @@ contract("PutETH", function(accounts) {
       it("should be some locked underlying asset after exchange", async function() {
         await exchangeOptions();
 
-        const underlyingBalance = await puteth.methods.underlyingBalance().call();
+        const underlyingBalance = await puteth.methods
+          .underlyingBalance()
+          .call();
         underlyingBalance.should.be.equal((1e18).toString());
 
         const strikeBalance = await puteth.methods.strikeBalance().call();
         strikeBalance.should.be.equal("0");
-
       });
     });
 
@@ -322,13 +347,13 @@ contract("PutETH", function(accounts) {
     describe("should allow withdraw", function() {
       it("should not allow withdraw with no balance", async function() {
         await forceExpiration();
-        let failed = false
+        let failed = false;
         try {
           await puteth.methods.withdraw().send({ from: sellerAddress });
         } catch (err) {
-          failed = true
+          failed = true;
         }
-        failed.should.be.true
+        failed.should.be.true;
       });
 
       it("should allow withdraw locked asset with no holding options", async function() {
@@ -352,75 +377,98 @@ contract("PutETH", function(accounts) {
           .send({ from: sellerAddress });
 
         // Exercise the option
-        await puteth.methods.exchange().send({ from: buyerAddress, value: (1e18).toString() });
+        await puteth.methods
+          .exchange()
+          .send({ from: buyerAddress, value: (1e18).toString() });
         await checkBalances(buyerAddress, "0", (270e18).toString(), null);
         const strikeBalance = await puteth.methods.strikeBalance().call();
-        strikeBalance.should.be.equal("0")
+        strikeBalance.should.be.equal("0");
 
         await forceExpiration();
 
-        const lockedBalance = await puteth.methods.lockedBalance(sellerAddress).call().then(balance => new BN(balance))
+        const lockedBalance = await puteth.methods
+          .lockedBalance(sellerAddress)
+          .call()
+          .then(balance => new BN(balance));
 
-        const initialEthAmount = await ZWeb3.getBalance(sellerAddress).then(balance => new BN(balance))
-        const withdrawTx = await puteth.methods.withdraw().send({ from: sellerAddress });
-        const amountEthAfter = await ZWeb3.getBalance(sellerAddress).then(balance => new BN(balance))
-        const withdrawCost = await txCost(withdrawTx)
-        const soma = amountEthAfter.add(withdrawCost).sub(lockedBalance)
+        const initialEthAmount = await ZWeb3.getBalance(sellerAddress).then(
+          balance => new BN(balance)
+        );
+        const withdrawTx = await puteth.methods
+          .withdraw()
+          .send({ from: sellerAddress });
+        const amountEthAfter = await ZWeb3.getBalance(sellerAddress).then(
+          balance => new BN(balance)
+        );
+        const withdrawCost = await txCost(withdrawTx);
+        const soma = amountEthAfter.add(withdrawCost).sub(lockedBalance);
 
-        soma.eq(initialEthAmount)
-        const underlyingBalanceFinal = await puteth.methods.underlyingBalance().call();
-        underlyingBalanceFinal.should.be.eq("0")
+        soma.eq(initialEthAmount);
+        const underlyingBalanceFinal = await puteth.methods
+          .underlyingBalance()
+          .call();
+        underlyingBalanceFinal.should.be.eq("0");
         await checkBalances(sellerAddress, "0", "0", null);
 
-        const finalEthAmount = await ZWeb3.getBalance(sellerAddress).then(balance => new BN(balance))
-        const finalGreaterThanInitial = finalEthAmount.gt(initialEthAmount)
-        finalGreaterThanInitial.should.be.true
+        const finalEthAmount = await ZWeb3.getBalance(sellerAddress).then(
+          balance => new BN(balance)
+        );
+        const finalGreaterThanInitial = finalEthAmount.gt(initialEthAmount);
+        finalGreaterThanInitial.should.be.true;
+      });
+
+      it("should allow withdraw a mix of locked strike asset and asset with was exercised by another user", async function() {
+        // 1)SellerAddress -> Mint 1 OPT locking 270 DAIs
+        // 2) SellerAddress -> Send 0.5 OPT to AnotherAddress
+        // 3) AnotherAddress -> Exchange 0.5 OPT + 0.5 ETH with puteth and receives 135 DAI
+        // 4) locked at puteth: 0.5 ETH and 135 DAI
+        // 5) System -> forceExpiration()
+        // 6) SellerAddress -> Withdraw (his lockedBalance: 1 option)
+        // 7) Contract -> Sends -> 0.5 ETH + 135 DAI
+
+        await checkBalances(sellerAddress, "0", (270e18).toString(), null);
+        // TODO: add set of parameters to test mint / exchange / withdraw / burn functions
+        await mintOptions();
+        await checkBalances(sellerAddress, (1e18).toString(), "0", null);
+
+        // Transfer 1 option to DAI holder
+        await puteth.methods
+          .transfer(anotherSellerHolder, (5e17).toString())
+          .send({ from: sellerAddress });
+
+        await checkBalances(anotherSellerHolder, (5e17).toString(), "0", null);
+
+        // Exercise the option
+        const initialEthAmount = await ZWeb3.getBalance(sellerAddress).then(
+          balance => new BN(balance)
+        );
+        const exchangeTx = await puteth.methods.exchange().send({ from: anotherSellerHolder, value: (5e17).toString() });
+        const exchangeCost = await txCost(exchangeTx)
+        const finalEthAmount = initialEthAmount.sub(new BN((5e17).toString())).sub(exchangeCost).toString()
+        await checkBalances(anotherSellerHolder, "0", (135e18).toString(), finalEthAmount);
+
+        //Expiration
+        await forceExpiration();
+
+        //Checks contract balance
+        const underlyingBalance = await puteth.methods.strikeBalance().call()
+
+        // Withdraw mixed balance
+        const initialEthAmount2 = await ZWeb3.getBalance(sellerAddress).then(
+          balance => new BN(balance)
+        );
+        const withdrawTx = await puteth.methods.withdraw().send({ from: sellerAddress });
+        const withdrawTxCost = await txCost(withdrawTx)
+        const finalEthAmount2 = initialEthAmount2.sub(withdrawTxCost).add(new BN(underlyingBalance))
+        
+        // Contract do not burn the remain OPT token. It becames unusable instead.
+        await checkBalances(
+          sellerAddress,
+          (5e17).toString(),
+          (135e18).toString(),
+          finalEthAmount2
+        );
       });
     });
-
-  //   // it("should allow withdraw a mix of locked strike asset and asset with was exercised by another user", async function() {
-  //   //   // Mint 3 options
-  //   //   await mockUSDC.methods
-  //   //     .approve(option.address, "3000003")
-  //   //     .send({ from: usdcHolder });
-
-  //   //   await checkBalances(usdcHolder, "0", "100000000", "0");
-  //   //   await checkBalances(daiHolder, "0", "0", "100000000000000000000");
-
-  //   //   await option.methods.mint("3").send({ from: usdcHolder });
-
-  //   //   await checkBalances(usdcHolder, "3000000000000000000", "96999997", "0");
-  //   //   await checkBalances(daiHolder, "0", "0", "100000000000000000000");
-
-  //   //   // Transfer 1 option to DAI holder
-  //   //   await option.methods
-  //   //     .transfer(daiHolder, "1000000000000000000")
-  //   //     .send({ from: usdcHolder });
-  //   //   await checkBalances(usdcHolder, "2000000000000000000", "96999997", "0");
-  //   //   await checkBalances(
-  //   //     daiHolder,
-  //   //     "1000000000000000000",
-  //   //     "0",
-  //   //     "100000000000000000000"
-  //   //   );
-
-  //   //   // Exercise the option
-  //   //   await mockDAI.methods
-  //   //     .approve(option.address, "1000000000000000000")
-  //   //     .send({ from: daiHolder });
-  //   //   await option.methods.exchange("1").send({ from: daiHolder });
-  //   //   await checkBalances(usdcHolder, "2000000000000000000", "96999997", "0");
-  //   //   await checkBalances(daiHolder, "0", "1000001", "99000000000000000000");
-
-  //   //   await forceExpiration();
-
-  //   //   await option.methods.withdraw().send({ from: usdcHolder });
-  //   //   await checkBalances(
-  //   //     usdcHolder,
-  //   //     "2000000000000000000",
-  //   //     "98999999",
-  //   //     "1000000000000000000"
-  //   //   );
-    // });
   });
 });
