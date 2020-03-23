@@ -91,7 +91,8 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
         string calldata symbol,
         IERC20 _strikeAsset,
         uint256 _strikePrice,
-        uint256 _strikePriceDecimals) external initializer
+        uint256 _strikePriceDecimals,
+        uint256 _expirationBlockNumber) external initializer
     {
         _initialize(
             name,
@@ -188,6 +189,10 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
         _mint(msg.sender, amount);
 
         uint256 amountToTransfer = amount.mul(strikePrice).div(10 ** strikePriceDecimals);
+
+        // Need to check the Strike Asset Decimals
+        // e.g .div(10 ** strikeAssetDecimals)
+        // Should check now or during contract deploy? (save gas if is during deploy)
         // Locks the strike asset inside this contract
         require(strikeAsset.transferFrom(msg.sender, address(this), amountToTransfer), "Couldn't transfer strike tokens from caller");
     }
@@ -205,10 +210,10 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
 
         // Burn option tokens
         lockedBalance[msg.sender] = lockedBalance[msg.sender].sub(amount);
-        _burn(msg.sender, amount.mul(1e18));
+        _burn(msg.sender, amount);
 
         // Unlocks the strike token
-        require(strikeAsset.transfer(msg.sender, amount.mul(strikePrice)), "Couldn't transfer back strike tokens to caller");
+        require(strikeAsset.transfer(msg.sender, amount.mul(strikePrice).div(10 ** strikePriceDecimals)), "Couldn't transfer back strike tokens to caller");
     }
 
     /**
@@ -247,7 +252,9 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
      * and given to the caller.
      */
     function withdraw() external afterExpiration {
-        _redeem(lockedBalance[msg.sender]);
+        uint256 amount = lockedBalance[msg.sender];
+        require(amount > 0, "You do not have balance to withdraw");
+        _redeem(amount);
     }
 
     /**
@@ -274,16 +281,17 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
         // Calculates how many underlying/strike tokens the caller
         // will get back
         uint256 currentStrikeBalance = strikeAsset.balanceOf(address(this));
-        uint256 strikeToReceive = amount.mul(strikePrice);
+        uint256 strikeToReceive = amount.mul(strikePrice).div(10 ** strikePriceDecimals);
         uint256 underlyingToReceive = 0;
         if (strikeToReceive > currentStrikeBalance) {
-            // Ensure integer division and rounding
-            uint256 strikeAmount = currentStrikeBalance.div(strikePrice);
-            strikeToReceive = strikeAmount.mul(strikePrice);
 
-            uint256 underlyingAmount = amount - strikeAmount;
-            underlyingToReceive = underlyingAmount;
+            uint256 underlyingAmount = strikeToReceive - currentStrikeBalance;
+            strikeToReceive = currentStrikeBalance;
+
+            underlyingToReceive = underlyingAmount.div(strikePrice).mul(10 ** strikePriceDecimals);
         }
+        // require(amount <= lockedBalance[msg.sender]), "Withdraw amount exceeds lockedBalance")
+        // We need to check if the person has enough lockedBalance
 
         // Unlocks the underlying token
         lockedBalance[msg.sender] = lockedBalance[msg.sender].sub(amount);
@@ -291,7 +299,7 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
             require(strikeAsset.transfer(msg.sender, strikeToReceive), "Couldn't transfer back strike tokens to caller");
         }
         if (underlyingToReceive > 0) {
-            address(msg.sender).transfer(underlyingToReceive);
+            require(msg.sender.send(underlyingToReceive), "Couldn't transfer back underlying tokens to caller");
         }
     }
 
