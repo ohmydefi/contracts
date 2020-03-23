@@ -199,10 +199,10 @@ contract CallETH is Initializable, ERC20Detailed, ERC20 {
 
         // Burn option tokens
         lockedBalance[msg.sender] = lockedBalance[msg.sender].sub(amount);
-        _burn(msg.sender, amount.mul(1e18));
+        _burn(msg.sender, amount);
 
         // Unlocks the strike token
-        require(strikeAsset.transfer(msg.sender, amount.mul(strikePrice)), "Couldn't transfer back strike tokens to caller");
+        require(msg.sender.send(amount), "Couldn't transfer underlying tokens to caller");
     }
 
     /**
@@ -269,16 +269,15 @@ contract CallETH is Initializable, ERC20Detailed, ERC20 {
     function _redeem(uint256 amount) internal {
         // Calculates how many underlying/strike tokens the caller
         // will get back
-        uint256 currentStrikeBalance = strikeAsset.balanceOf(address(this));
-        uint256 strikeToReceive = amount.mul(strikePrice);
-        uint256 underlyingToReceive = 0;
-        if (strikeToReceive > currentStrikeBalance) {
+        uint256 currentUnderlyingBalance = address(this).balance;
+        uint256 underlyingToReceive = amount;
+        uint256 strikeToReceive = 0;
+        if (underlyingToReceive > currentUnderlyingBalance) {
             // Ensure integer division and rounding
-            uint256 strikeAmount = currentStrikeBalance.div(strikePrice);
-            strikeToReceive = strikeAmount.mul(strikePrice);
+            uint256 underlyingAmount = amount - currentUnderlyingBalance;
+            underlyingToReceive = currentUnderlyingBalance;
 
-            uint256 underlyingAmount = amount - strikeAmount;
-            underlyingToReceive = underlyingAmount;
+            strikeToReceive = underlyingAmount.mul(strikePrice).div(10 ** strikePriceDecimals);
         }
 
         // Unlocks the underlying token
@@ -287,7 +286,7 @@ contract CallETH is Initializable, ERC20Detailed, ERC20 {
             require(strikeAsset.transfer(msg.sender, strikeToReceive), "Couldn't transfer back strike tokens to caller");
         }
         if (underlyingToReceive > 0) {
-            address(msg.sender).transfer(underlyingToReceive);
+            require(msg.sender.send(underlyingToReceive), "Couldn't transfer underlying tokens to caller");
         }
     }
 

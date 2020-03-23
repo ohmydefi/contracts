@@ -184,58 +184,47 @@ contract("PutETH", function(accounts) {
       });
     });
 
-    // describe("can burn options to get back my assets", function() {
-    //   /**
-    //    * - USDC holder has 100 USDC
-    //    * - USDC holder mints 1 DAI:USDC for 1.000001 USDC: 1 DAI:USDC/98.999999 USDC
-    //    * - USDC holder burns 1 DAI_USDC for 1.000001 USDC back: 0 DAI:USDC/100 USDC
-    //    */
-    //   it("should be able to burn all my options for all my locked assets", async function() {
-    //     await mintOptions();
+    describe("can burn options to get back my assets", function() {
+     
+      it("should be able to burn all my options for all my locked assets", async function() {
+        await mintOptions();
 
-    //     await option.methods.burn("1").send({ from: usdcHolder });
+        await checkBalances(sellerAddress, (1e18).toString(), "0", null);
+        await puteth.methods.burn((1e18).toString()).send({ from: sellerAddress });
 
-    //     await checkBalances(usdcHolder, "0", "100000000", "0");
-    //     await checkBalances(daiHolder, "0", "0", "100000000000000000000");
-    //   });
+        await checkBalances(sellerAddress, "0", (270e18).toString(), null);
+      });
 
     //   /**
-    //    * - USDC holder has 100 USDC
-    //    * - USDC holder mints 1 DAI:USDC for 1.000001 USDC: 1 DAI:USDC/98.999999 USDC
+    //    * - SellerAddress has 100 DAI
+    //    * - USDC holder mints 1 ETH:DAI for 270 DAI
     //    * - USDC holder gives 1.000001 USDC to another holder: 1 DAI:USDC/97.999998 USDC
     //    * - Another holder mints 1 DAI:USDC and send back to USDC holder: 2 DAI:USDC/97.999998 USDC
     //    * - USDC holder tries to burn 2 DAI:USDC and fails because he has only 1.000001 USDC locked inside the contract
     //    */
-    //   it("should not be able to burn more options than the amount of my locked tokens", async function() {
-    //     await mintOptions();
+      it("should not be able to burn more options than the amount of my locked tokens", async function() {
+        await mintOptions();
 
-    //     // Give 1 unit of USDC to another holder and mint 1 option from there
-    //     await mockUSDC.methods
-    //       .transfer(anotherUsdcHolder, "1000001")
-    //       .send({ from: usdcHolder });
-    //     await mintOptionsAndCheck(
-    //       anotherUsdcHolder,
-    //       "1",
-    //       "1000001",
-    //       ["0", "1000000000000000000"],
-    //       ["1000001", "0"]
-    //     );
+        // SellerAddress -> Transfer 0.5 OPT to anotherRandomAddress
+        await puteth.methods
+          .transfer(anotherSellerHolder, (5e17).toString())
+          .send({ from: sellerAddress });
 
-    //     // Send 1 option back to USDC holder and try to burn everything
-    //     await option.methods
-    //       .transfer(usdcHolder, "1000000000000000000")
-    //       .send({ from: anotherUsdcHolder });
-    //     await checkBalances(usdcHolder, "2000000000000000000", "97999998", "0");
+        await checkBalances(sellerAddress, (5e17).toString(), "0", null);
 
-    //     let failed = false;
-    //     try {
-    //       await option.methods.burn("2").send({ from: usdcHolder });
-    //     } catch (err) {
-    //       failed = true;
-    //     }
-    //     failed.should.be.true;
-    //   });
-    // });
+        let failed = false;
+        try {
+          await puteth.methods.burn((1e18).toString()).send({ from: sellerAddress });
+        } catch (err) {
+          failed = true;
+        }
+        failed.should.be.true;
+
+        // now call burn with right amount
+        await puteth.methods.burn((5e17).toString()).send({ from: sellerAddress });
+        await checkBalances(sellerAddress, "0", (135e18).toString(), null);
+      });
+    });
 
     describe("can sell my underlying tokens for the strike tokens at the strike price", function() {
       async function exchangeOptions() {
@@ -418,7 +407,7 @@ contract("PutETH", function(accounts) {
       });
 
       it("should allow withdraw a mix of locked strike asset and asset with was exercised by another user", async function() {
-        // 1)SellerAddress -> Mint 1 OPT locking 270 DAIs
+        // 1) SellerAddress -> Mint 1 OPT locking 270 DAIs
         // 2) SellerAddress -> Send 0.5 OPT to AnotherAddress
         // 3) AnotherAddress -> Exchange 0.5 OPT + 0.5 ETH with puteth and receives 135 DAI
         // 4) locked at puteth: 0.5 ETH and 135 DAI

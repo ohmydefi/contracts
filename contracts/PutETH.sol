@@ -210,10 +210,10 @@ contract PutETH is Initializable, ERC20Detailed, ERC20 {
 
         // Burn option tokens
         lockedBalance[msg.sender] = lockedBalance[msg.sender].sub(amount);
-        _burn(msg.sender, amount.mul(1e18));
+        _burn(msg.sender, amount);
 
         // Unlocks the strike token
-        require(strikeAsset.transfer(msg.sender, amount.mul(strikePrice)), "Couldn't transfer back strike tokens to caller");
+        require(strikeAsset.transfer(msg.sender, amount.mul(strikePrice).div(10 ** strikePriceDecimals)), "Couldn't transfer back strike tokens to caller");
     }
 
     /**

@@ -1,5 +1,6 @@
 const { TestHelper } = require("@openzeppelin/cli");
 const { Contracts, ZWeb3 } = require("@openzeppelin/upgrades");
+const BN = require("bn.js");
 
 ZWeb3.initialize(web3.currentProvider);
 
@@ -67,7 +68,6 @@ contract("CallETH", function(accounts) {
 
     if (underlyingAsset !== null) {
       const underlyingBalance = await ZWeb3.getBalance(account);
-      console.log("underlyingBalance", underlyingBalance);
       underlyingBalance.should.be.equal(underlyingAsset);
     }
 
@@ -75,6 +75,18 @@ contract("CallETH", function(accounts) {
     //   const daiBalance = await mockUnderlyingAsset.methods.balanceOf(account).call();
     //   daiBalance.should.be.equal(underlyingAsset);
     // }
+  }
+
+  async function txCost(tx) {
+    try {
+      const txHash = tx.transactionHash;
+      const gasUsed = new BN(tx.gasUsed);
+      const txInfo = await ZWeb3.getTransaction(txHash);
+      const gasPrice = new BN(txInfo.gasPrice);
+      return gasUsed.mul(gasPrice);
+    } catch (err) {
+      return err;
+    }
   }
 
   async function mintOptions() {
@@ -157,58 +169,95 @@ contract("CallETH", function(accounts) {
       });
     });
 
-    // describe("can burn options to get back my assets", function() {
-    //   /**
-    //    * - USDC holder has 100 USDC
-    //    * - USDC holder mints 1 DAI:USDC for 1.000001 USDC: 1 DAI:USDC/98.999999 USDC
-    //    * - USDC holder burns 1 DAI_USDC for 1.000001 USDC back: 0 DAI:USDC/100 USDC
-    //    */
-    //   it("should be able to burn all my options for all my locked assets", async function() {
-    //     await mintOptions();
+    describe("can burn options to get back my assets", function() {
+      it("should be able to burn all my options for all my locked assets", async function() {
+        await mintOptions();
 
-    //     await option.methods.burn("1").send({ from: usdcHolder });
+        const initialEthAmount = await ZWeb3.getBalance(sellerAddress).then(
+          balance => new BN(balance)
+        );
 
-    //     await checkBalances(usdcHolder, "0", "100000000", "0");
-    //     await checkBalances(daiHolder, "0", "0", "100000000000000000000");
-    //   });
+        await checkBalances(
+          sellerAddress,
+          (1e18).toString(),
+          (270e18).toString(),
+          initialEthAmount.toString()
+        );
 
-    //   /**
-    //    * - USDC holder has 100 USDC
-    //    * - USDC holder mints 1 DAI:USDC for 1.000001 USDC: 1 DAI:USDC/98.999999 USDC
-    //    * - USDC holder gives 1.000001 USDC to another holder: 1 DAI:USDC/97.999998 USDC
-    //    * - Another holder mints 1 DAI:USDC and send back to USDC holder: 2 DAI:USDC/97.999998 USDC
-    //    * - USDC holder tries to burn 2 DAI:USDC and fails because he has only 1.000001 USDC locked inside the contract
-    //    */
-    //   it("should not be able to burn more options than the amount of my locked tokens", async function() {
-    //     await mintOptions();
+        const burnTx = await calleth.methods
+          .burn((1e18).toString())
+          .send({ from: sellerAddress });
 
-    //     // Give 1 unit of USDC to another holder and mint 1 option from there
-    //     await mockUSDC.methods
-    //       .transfer(anotherUsdcHolder, "1000001")
-    //       .send({ from: usdcHolder });
-    //     await mintOptionsAndCheck(
-    //       anotherUsdcHolder,
-    //       "1",
-    //       "1000001",
-    //       ["0", "1000000000000000000"],
-    //       ["1000001", "0"]
-    //     );
+        const burnTxCost = await txCost(burnTx);
 
-    //     // Send 1 option back to USDC holder and try to burn everything
-    //     await option.methods
-    //       .transfer(usdcHolder, "1000000000000000000")
-    //       .send({ from: anotherUsdcHolder });
-    //     await checkBalances(usdcHolder, "2000000000000000000", "97999998", "0");
+        const finalEthAmount = initialEthAmount
+          .sub(burnTxCost)
+          .add(new BN((1e18).toString()));
 
-    //     let failed = false;
-    //     try {
-    //       await option.methods.burn("2").send({ from: usdcHolder });
-    //     } catch (err) {
-    //       failed = true;
-    //     }
-    //     failed.should.be.true;
-    //   });
-    // });
+        await checkBalances(
+          sellerAddress,
+          "0",
+          (270e18).toString(),
+          finalEthAmount.toString()
+        );
+      });
+
+        /**
+         * - USDC holder has 100 USDC
+         * - USDC holder mints 1 DAI:USDC for 1.000001 USDC: 1 DAI:USDC/98.999999 USDC
+         * - USDC holder gives 1.000001 USDC to another holder: 1 DAI:USDC/97.999998 USDC
+         * - Another holder mints 1 DAI:USDC and send back to USDC holder: 2 DAI:USDC/97.999998 USDC
+         * - USDC holder tries to burn 2 DAI:USDC and fails because he has only 1.000001 USDC locked inside the contract
+         */
+        it("should not be able to burn more options than the amount of my locked tokens", async function() {
+          await mintOptions();
+
+          // Give 0.5 unit of OPT to another holder
+          await calleth.methods
+            .transfer(anotherRandomAddress, (5e17).toString())
+            .send({ from: sellerAddress });
+
+          await checkBalances(sellerAddress, (5e17).toString(), (270e18).toString(), null);
+
+          let failed = false;
+          try {
+            await calleth.methods.burn((1e18).toString()).send({ from: sellerAddress });
+          } catch (err) {
+            failed = true;
+          }
+          failed.should.be.true;
+
+          //now burn the correct amount
+          const initialEthAmount = await ZWeb3.getBalance(sellerAddress).then(
+            balance => new BN(balance)
+          );
+  
+          await checkBalances(
+            sellerAddress,
+            (5e17).toString(),
+            (270e18).toString(),
+            initialEthAmount.toString()
+          );
+  
+          const burnTx = await calleth.methods
+            .burn((5e17).toString())
+            .send({ from: sellerAddress });
+  
+          const burnTxCost = await txCost(burnTx);
+  
+          const finalEthAmount = initialEthAmount
+            .sub(burnTxCost)
+            .add(new BN((5e17).toString()));
+  
+          await checkBalances(
+            sellerAddress,
+            "0",
+            (270e18).toString(),
+            finalEthAmount.toString()
+          );
+
+        });
+    });
 
     describe("can sell my underlying tokens for the strike tokens at the strike price", function() {
       async function exchangeOptions(amount) {
@@ -304,7 +353,7 @@ contract("CallETH", function(accounts) {
 
         // const amountAllowed = await calleth.methods
         //   .allowance(sellerAddress, anotherRandomAddress)
-        //   .call();
+        //   .scall();
 
         // console.log("amountAllowed", amountAllowed);
 
@@ -326,6 +375,7 @@ contract("CallETH", function(accounts) {
         await calleth.methods
           .transfer(anotherRandomAddress, (1e18).toString())
           .send({ from: sellerAddress });
+
         await forceExpiration();
 
         await checkBalances(
@@ -334,9 +384,26 @@ contract("CallETH", function(accounts) {
           null,
           null
         );
-        const initialEthAmount = await ZWeb3.getBalance(sellerAddress);
-        await calleth.methods.withdraw().send({ from: sellerAddress });
-        const finalEthAmount = await ZWeb3.getBalance(sellerAddress);
+        const initialEthAmount = await ZWeb3.getBalance(sellerAddress).then(
+          balance => new BN(balance)
+        );
+        const withdrawTx = await calleth.methods
+          .withdraw()
+          .send({ from: sellerAddress });
+        const withdrawTxCost = await txCost(withdrawTx);
+
+        // const finalEthAmount = await ZWeb3.getBalance(sellerAddress);
+        const finalEthAmount = initialEthAmount
+          .sub(withdrawTxCost)
+          .add(new BN((1e18).toString()));
+
+        await checkBalances(
+          sellerAddress,
+          "0",
+          (270e18).toString(),
+          finalEthAmount.toString()
+        );
+
         const comparison = finalEthAmount > initialEthAmount;
         comparison.should.be.true;
       });
@@ -344,7 +411,7 @@ contract("CallETH", function(accounts) {
       it("should allow withdraw locked asset with was exercised by another user", async function() {
         await mintOptions();
 
-        // Transfer 1 option to DAI holder
+        // Transfer 1 option to anotherRandomAddress
         await calleth.methods
           .transfer(anotherRandomAddress, (1e18).toString())
           .send({ from: sellerAddress });
@@ -354,68 +421,128 @@ contract("CallETH", function(accounts) {
           .send({ from: sellerAddress });
 
         // Exercise the option
+        // 1) Approve calleth.address to transfer funds for anotherRandomAddress
         await mockStrikeAsset.methods
           .approve(calleth.address, (300e18).toString())
           .send({ from: anotherRandomAddress });
 
-        await calleth.methods.exchange((1e18).toString()).send({ from: anotherRandomAddress });
+        // 2) Exchange calling with the amount of options tokens to exchange
+        await calleth.methods
+          .exchange((1e18).toString())
+          .send({ from: anotherRandomAddress });
 
-        const strikeAssetHoldByCall = await mockStrikeAsset.methods.balanceOf(calleth.address).call()
-        strikeAssetHoldByCall.should.be.equal((270e18).toString())
+        const strikeAssetHoldByCall = await mockStrikeAsset.methods
+          .balanceOf(calleth.address)
+          .call();
+        strikeAssetHoldByCall.should.be.equal((270e18).toString());
 
-        const callEthStrikeAssetBalance = await calleth.methods.strikeBalance().call()
-        callEthStrikeAssetBalance.should.be.equal(strikeAssetHoldByCall)
+        const callEthStrikeAssetBalance = await calleth.methods
+          .strikeBalance()
+          .call();
+        callEthStrikeAssetBalance.should.be.equal(strikeAssetHoldByCall);
 
         await forceExpiration();
 
         await calleth.methods.withdraw().send({ from: sellerAddress });
         await checkBalances(sellerAddress, "0", (270e18).toString(), null);
       });
+
+      it("should allow withdraw a mix of locked strike asset and asset with was exercised by another user", async function() {
+        // 1) SellerAddress -> Mint 1 OPT locking 1 ETH
+        // 2) SellerAddress -> Send 0.5 OPT to AnotherAddress
+        // 3) AnotherAddress -> Exchange 0.5 OPT + 135 DAI with calleth and receives 0.5 ETH
+        // 4) locked at callth: 0.5 ETH and 135 DAI
+        // 5) System -> forceExpiration()
+        // 6) SellerAddress -> Withdraw (his lockedBalance: 1 option)
+        // 7) Contract -> Sends -> 0.5 ETH + 135 DAI
+
+        // 1)
+        await checkBalances(sellerAddress, "0", (270e18).toString(), null);
+
+        const initialEthAmount = await ZWeb3.getBalance(sellerAddress).then(
+          balance => new BN(balance)
+        );
+        const ethAmountToLock = (1e18).toString();
+        const mintTx = await calleth.methods
+          .mint()
+          .send({ from: sellerAddress, value: ethAmountToLock });
+
+        const mintTxCost = await txCost(mintTx);
+        const finalEthAmount = initialEthAmount
+          .sub(new BN(ethAmountToLock))
+          .sub(mintTxCost);
+
+        await checkBalances(
+          sellerAddress,
+          (1e18).toString(),
+          (270e18).toString(),
+          finalEthAmount.toString()
+        );
+
+        //2 Transfer  270 DAI strikeAsset to AnotherRandomAddress
+        await mockStrikeAsset.methods
+          .transfer(anotherRandomAddress, (270e18).toString())
+          .send({ from: sellerAddress });
+        //3 Transfer 1 OPT to AnotherRandomAddress
+        await calleth.methods
+          .transfer(anotherRandomAddress, (1e18).toString())
+          .send({ from: sellerAddress });
+
+        await checkBalances(
+          anotherRandomAddress,
+          (1e18).toString(),
+          (270e18).toString(),
+          null
+        );
+
+        // Exercise only 0.5 OPT
+        //4 Approve calleth to transfer funds to anotherRandomAddress
+        await mockStrikeAsset.methods
+          .approve(calleth.address, (300e18).toString())
+          .send({ from: anotherRandomAddress });
+
+        const initialEthAmount2 = await ZWeb3.getBalance(
+          anotherRandomAddress
+        ).then(balance => new BN(balance));
+
+        const exchangeTx = await calleth.methods
+          .exchange((5e17).toString())
+          .send({ from: anotherRandomAddress });
+
+        const exchangeTxCost = await txCost(exchangeTx);
+
+        const finalEthAmount2 = initialEthAmount2
+          .add(new BN((5e17).toString()))
+          .sub(exchangeTxCost);
+
+        await checkBalances(
+          anotherRandomAddress,
+          (5e17).toString(),
+          (135e18).toString(),
+          finalEthAmount2.toString()
+        );
+
+        //5 Expiration
+        await forceExpiration();
+
+        const initialEthAmount3 = await ZWeb3.getBalance(sellerAddress).then(
+          balance => new BN(balance)
+        );
+        const withdrawTx = await calleth.methods
+          .withdraw()
+          .send({ from: sellerAddress });
+        const withdrawTxCost = await txCost(withdrawTx);
+        const finalEthAmount3 = initialEthAmount3
+          .sub(withdrawTxCost)
+          .add(new BN((5e17).toString()));
+
+        // await checkBalances(
+        //   sellerAddress,
+        //   (1e18).toString(),
+        //   (135e18).toString(),
+        //   finalEthAmount3.toString()
+        // );
+      });
     });
-
-    //   // it("should allow withdraw a mix of locked strike asset and asset with was exercised by another user", async function() {
-    //   //   // Mint 3 options
-    //   //   await mockUSDC.methods
-    //   //     .approve(option.address, "3000003")
-    //   //     .send({ from: usdcHolder });
-
-    //   //   await checkBalances(usdcHolder, "0", "100000000", "0");
-    //   //   await checkBalances(daiHolder, "0", "0", "100000000000000000000");
-
-    //   //   await option.methods.mint("3").send({ from: usdcHolder });
-
-    //   //   await checkBalances(usdcHolder, "3000000000000000000", "96999997", "0");
-    //   //   await checkBalances(daiHolder, "0", "0", "100000000000000000000");
-
-    //   //   // Transfer 1 option to DAI holder
-    //   //   await option.methods
-    //   //     .transfer(daiHolder, "1000000000000000000")
-    //   //     .send({ from: usdcHolder });
-    //   //   await checkBalances(usdcHolder, "2000000000000000000", "96999997", "0");
-    //   //   await checkBalances(
-    //   //     daiHolder,
-    //   //     "1000000000000000000",
-    //   //     "0",
-    //   //     "100000000000000000000"
-    //   //   );
-
-    //   //   // Exercise the option
-    //   //   await mockDAI.methods
-    //   //     .approve(option.address, "1000000000000000000")
-    //   //     .send({ from: daiHolder });
-    //   //   await option.methods.exchange("1").send({ from: daiHolder });
-    //   //   await checkBalances(usdcHolder, "2000000000000000000", "96999997", "0");
-    //   //   await checkBalances(daiHolder, "0", "1000001", "99000000000000000000");
-
-    //   //   await forceExpiration();
-
-    //   //   await option.methods.withdraw().send({ from: usdcHolder });
-    //   //   await checkBalances(
-    //   //     usdcHolder,
-    //   //     "2000000000000000000",
-    //   //     "98999999",
-    //   //     "1000000000000000000"
-    //   //   );
-    //   // });
   });
 });
