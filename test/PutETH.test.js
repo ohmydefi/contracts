@@ -13,6 +13,7 @@ const StandaloneERC20 = Contracts.getFromNodeModules(
 require("chai").should();
 
 contract("PutETH", function(accounts) {
+  const ethAddress = '0x0000000000000000000000000000000000000000'
   let mockStrikeAsset;
   let puteth;
 
@@ -42,12 +43,12 @@ contract("PutETH", function(accounts) {
     puteth = await this.project.createProxy(PutETH, {
       initMethod: "initializeInTestMode",
       initArgs: [
-        "ohETH:STRIKE",
-        "OH:ETH:STRIKE",
+        "pohETH:STRIKE",
+        "POH:ETH:STRIKE",
+        ethAddress,
         mockStrikeAsset.address,
         270000000,
-        6,
-        "1000001"
+        6
       ]
     });
   });
