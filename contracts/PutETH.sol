@@ -1,6 +1,6 @@
 pragma solidity 0.5.11;
 
-import "./Option.sol";
+import "./OptionCore.sol";
 
 
 /**
@@ -40,7 +40,7 @@ import "./Option.sol";
  * - Will sell 1 DAI for 1 USDC (the strike price) each.
  * - Will burn the corresponding amounty of put tokens.
  */
-contract PutETH is Option {
+contract PutETH is OptionCore {
 
     /**
      * Locks some amount of the strike token and writes option tokens.

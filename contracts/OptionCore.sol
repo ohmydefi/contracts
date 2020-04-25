@@ -6,7 +6,7 @@ import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20Deta
 import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
 
-contract Option is Initializable, ERC20Detailed, ERC20 {
+contract OptionCore is Initializable, ERC20Detailed, ERC20 {
 
     /**
      * The asset used as the underlying token, e.g. DAI
