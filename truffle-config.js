@@ -27,8 +27,7 @@ module.exports = {
           process.env.ADDRESS_INDEX
         ),
       network_id: "1",
-      gasPrice: 120000000000,
-      gas: 310000
+      gasPrice: 5e9
     },
     kovan: {
       provider: () =>
@@ -47,8 +46,8 @@ module.exports = {
           process.env.ADDRESS_INDEX
         ),
       network_id: 4,
-      gas: 10000000,
-      gasPrice: 1e11
+      gasPrice: 3e9,
+      gas: 10000000
     }
   },
 
