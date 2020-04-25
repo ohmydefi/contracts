@@ -13,6 +13,7 @@ const StandaloneERC20 = Contracts.getFromNodeModules(
 require("chai").should();
 
 contract("CallETH", function(accounts) {
+  const ethAddress = '0x0000000000000000000000000000000000000000'
   let mockStrikeAsset;
   let calleth;
 
@@ -44,11 +45,11 @@ contract("CallETH", function(accounts) {
       initMethod: "initializeInTestMode",
       initArgs: [
         "cohETH:STRIKE",
-        "coH:ETH:STRIKE",
+        "COH:ETH:STRIKE",
+        ethAddress,
         mockStrikeAsset.address,
         270000000,
-        6,
-        "1000001"
+        6
       ]
     });
   });
