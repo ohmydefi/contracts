@@ -4,7 +4,7 @@ const BN = require("bn.js");
 
 ZWeb3.initialize(web3.currentProvider);
 
-const PutETH = Contracts.getFromLocal("PutETH");
+const PohETH = Contracts.getFromLocal("PohETH");
 const StandaloneERC20 = Contracts.getFromNodeModules(
   "@openzeppelin/contracts-ethereum-package",
   "StandaloneERC20"
@@ -12,10 +12,10 @@ const StandaloneERC20 = Contracts.getFromNodeModules(
 
 require("chai").should();
 
-contract("PutETH", function(accounts) {
+contract("PohETH", function(accounts) {
   const ethAddress = '0x0000000000000000000000000000000000000000'
   let mockStrikeAsset;
-  let puteth;
+  let poheth;
 
   let sellerAddress;
   let buyerAddress;
@@ -40,7 +40,7 @@ contract("PutETH", function(accounts) {
       ]
     });
 
-    puteth = await this.project.createProxy(PutETH, {
+    poheth = await this.project.createProxy(PohETH, {
       initMethod: "initializeInTestMode",
       initArgs: [
         "pohETH:STRIKE",
@@ -73,7 +73,7 @@ contract("PutETH", function(accounts) {
     show
   ) {
     if (options !== null) {
-      const optionsBalance = await puteth.methods.balanceOf(account).call();
+      const optionsBalance = await poheth.methods.balanceOf(account).call();
       if (show) console.log("optionsBalance", optionsBalance);
       optionsBalance.should.be.equal(options);
     }
@@ -93,13 +93,13 @@ contract("PutETH", function(accounts) {
 
   async function mintOptions() {
     await mockStrikeAsset.methods
-      .approve(puteth.address, (270e18).toString())
+      .approve(poheth.address, (270e18).toString())
       .send({ from: sellerAddress });
 
     await checkBalances(sellerAddress, "0", (270e18).toString(), "0");
     // await checkBalances(daiHolder, "0", "0", "100000000000000000000");
 
-    await puteth.methods.mint((1e18).toString()).send({ from: sellerAddress });
+    await poheth.methods.mint((1e18).toString()).send({ from: sellerAddress });
 
     await checkBalances(sellerAddress, (1e18).toString(), "0", "0");
     // await checkBalances(daiHolder, "0", "0", "100000000000000000000");
@@ -107,13 +107,13 @@ contract("PutETH", function(accounts) {
 
   async function mintOptionsDecimals() {
     await mockStrikeAsset.methods
-      .approve(puteth.address, (270e18).toString())
+      .approve(poheth.address, (270e18).toString())
       .send({ from: sellerAddress });
 
     await checkBalances(sellerAddress, "0", (270e18).toString(), "0");
     // await checkBalances(daiHolder, "0", "0", "100000000000000000000");
 
-    await puteth.methods.mint((1e17).toString()).send({ from: sellerAddress });
+    await poheth.methods.mint((1e17).toString()).send({ from: sellerAddress });
 
     await checkBalances(
       sellerAddress,
@@ -126,14 +126,14 @@ contract("PutETH", function(accounts) {
 
   describe("general checks", function() {
     it("should have 18 fixed decimals", async function() {
-      const decimals = await puteth.methods.decimals().call();
+      const decimals = await poheth.methods.decimals().call();
       decimals.should.be.equals("18");
     });
   });
 
   describe("before expiration", function() {
     afterEach(async function() {
-      const expired = await puteth.methods.hasExpired().call();
+      const expired = await poheth.methods.hasExpired().call();
       expired.should.be.false;
     });
 
@@ -141,7 +141,7 @@ contract("PutETH", function(accounts) {
       it("should fail if not allowed to spend strike tokens", async function() {
         let failed = false;
         try {
-          await puteth.methods.mint("1").send({ from: sellerAddress });
+          await poheth.methods.mint("1").send({ from: sellerAddress });
         } catch (err) {
           failed = true;
         }
@@ -156,7 +156,7 @@ contract("PutETH", function(accounts) {
         await mintOptions();
 
         // Check locked balances
-        const strikeBalance = await puteth.methods.strikeBalance().call();
+        const strikeBalance = await poheth.methods.strikeBalance().call();
         strikeBalance.should.be.equal((270e18).toString());
       });
     });
@@ -165,7 +165,7 @@ contract("PutETH", function(accounts) {
       it("should fail if not allowed to spend strike tokens", async function() {
         let failed = false;
         try {
-          await puteth.methods.mint("1").send({ from: sellerAddress });
+          await poheth.methods.mint("1").send({ from: sellerAddress });
         } catch (err) {
           failed = true;
         }
@@ -180,7 +180,7 @@ contract("PutETH", function(accounts) {
         await mintOptionsDecimals();
 
         // Check locked balances
-        const strikeBalance = await puteth.methods.strikeBalance().call();
+        const strikeBalance = await poheth.methods.strikeBalance().call();
         strikeBalance.should.be.equal((270e17).toString());
       });
     });
@@ -191,7 +191,7 @@ contract("PutETH", function(accounts) {
         await mintOptions();
 
         await checkBalances(sellerAddress, (1e18).toString(), "0", null);
-        await puteth.methods.burn((1e18).toString()).send({ from: sellerAddress });
+        await poheth.methods.burn((1e18).toString()).send({ from: sellerAddress });
 
         await checkBalances(sellerAddress, "0", (270e18).toString(), null);
       });
@@ -207,7 +207,7 @@ contract("PutETH", function(accounts) {
         await mintOptions();
 
         // SellerAddress -> Transfer 0.5 OPT to anotherRandomAddress
-        await puteth.methods
+        await poheth.methods
           .transfer(anotherSellerHolder, (5e17).toString())
           .send({ from: sellerAddress });
 
@@ -215,14 +215,14 @@ contract("PutETH", function(accounts) {
 
         let failed = false;
         try {
-          await puteth.methods.burn((1e18).toString()).send({ from: sellerAddress });
+          await poheth.methods.burn((1e18).toString()).send({ from: sellerAddress });
         } catch (err) {
           failed = true;
         }
         failed.should.be.true;
 
         // now call burn with right amount
-        await puteth.methods.burn((5e17).toString()).send({ from: sellerAddress });
+        await poheth.methods.burn((5e17).toString()).send({ from: sellerAddress });
         await checkBalances(sellerAddress, "0", (135e18).toString(), null);
       });
     });
@@ -248,7 +248,7 @@ contract("PutETH", function(accounts) {
         //   .approve(option.address, "1000000000000000000")
         //   .send({ from: daiHolder });
 
-        await puteth.methods
+        await poheth.methods
           .exchange()
           .send({ from: sellerAddress, value: (1e18).toString() });
         await checkBalances(sellerAddress, "0", (270e18).toString(), "0");
@@ -262,12 +262,12 @@ contract("PutETH", function(accounts) {
       it("should be some locked underlying asset after exchange", async function() {
         await exchangeOptions();
 
-        const underlyingBalance = await puteth.methods
+        const underlyingBalance = await poheth.methods
           .underlyingBalance()
           .call();
         underlyingBalance.should.be.equal((1e18).toString());
 
-        const strikeBalance = await puteth.methods.strikeBalance().call();
+        const strikeBalance = await poheth.methods.strikeBalance().call();
         strikeBalance.should.be.equal("0");
       });
     });
@@ -288,21 +288,21 @@ contract("PutETH", function(accounts) {
      * Utility function to force the series expiration for these tests
      */
     async function forceExpiration() {
-      await puteth.methods.forceExpiration().send({ from: sellerAddress });
-      const expired = await puteth.methods.hasExpired().call();
+      await poheth.methods.forceExpiration().send({ from: sellerAddress });
+      const expired = await poheth.methods.hasExpired().call();
       expired.should.be.true;
     }
 
     describe("can't mint, burn or exchange options anymore", function() {
       it("should not allow mint()", async function() {
         await mockStrikeAsset.methods
-          .approve(puteth.address, (1e18).toString())
+          .approve(poheth.address, (1e18).toString())
           .send({ from: sellerAddress });
 
         await forceExpiration();
         let failed = false;
         try {
-          await puteth.methods.mint().send({ from: sellerAddress });
+          await poheth.methods.mint().send({ from: sellerAddress });
         } catch (err) {
           failed = true;
         }
@@ -315,7 +315,7 @@ contract("PutETH", function(accounts) {
         await mintOptions();
         await forceExpiration();
 
-        await puteth.methods
+        await poheth.methods
           .transfer(anotherSellerHolder, (1e18).toString())
           .send({ from: sellerAddress });
       });
@@ -324,11 +324,11 @@ contract("PutETH", function(accounts) {
         await mintOptions();
         await forceExpiration();
 
-        await puteth.methods
+        await poheth.methods
           .approve(sellerAddress, (1e18).toString())
           .send({ from: sellerAddress });
 
-        await puteth.methods
+        await poheth.methods
           .transferFrom(sellerAddress, anotherSellerHolder, (1e18).toString())
           .send({ from: sellerAddress });
       });
@@ -339,7 +339,7 @@ contract("PutETH", function(accounts) {
         await forceExpiration();
         let failed = false;
         try {
-          await puteth.methods.withdraw().send({ from: sellerAddress });
+          await poheth.methods.withdraw().send({ from: sellerAddress });
         } catch (err) {
           failed = true;
         }
@@ -348,13 +348,13 @@ contract("PutETH", function(accounts) {
 
       it("should allow withdraw locked asset with no holding options", async function() {
         await mintOptions();
-        await puteth.methods
+        await poheth.methods
           .transfer(anotherSellerHolder, (1e18).toString())
           .send({ from: sellerAddress });
         await forceExpiration();
 
         await checkBalances(sellerAddress, "0", "0", null);
-        await puteth.methods.withdraw().send({ from: sellerAddress });
+        await poheth.methods.withdraw().send({ from: sellerAddress });
         await checkBalances(sellerAddress, "0", (270e18).toString(), null);
       });
 
@@ -362,21 +362,21 @@ contract("PutETH", function(accounts) {
         await mintOptions();
 
         // Transfer 1 option to DAI holder
-        await puteth.methods
+        await poheth.methods
           .transfer(buyerAddress, (1e18).toString())
           .send({ from: sellerAddress });
 
         // Exercise the option
-        await puteth.methods
+        await poheth.methods
           .exchange()
           .send({ from: buyerAddress, value: (1e18).toString() });
         await checkBalances(buyerAddress, "0", (270e18).toString(), null);
-        const strikeBalance = await puteth.methods.strikeBalance().call();
+        const strikeBalance = await poheth.methods.strikeBalance().call();
         strikeBalance.should.be.equal("0");
 
         await forceExpiration();
 
-        const lockedBalance = await puteth.methods
+        const lockedBalance = await poheth.methods
           .lockedBalance(sellerAddress)
           .call()
           .then(balance => new BN(balance));
@@ -384,7 +384,7 @@ contract("PutETH", function(accounts) {
         const initialEthAmount = await ZWeb3.getBalance(sellerAddress).then(
           balance => new BN(balance)
         );
-        const withdrawTx = await puteth.methods
+        const withdrawTx = await poheth.methods
           .withdraw()
           .send({ from: sellerAddress });
         const amountEthAfter = await ZWeb3.getBalance(sellerAddress).then(
@@ -394,7 +394,7 @@ contract("PutETH", function(accounts) {
         const soma = amountEthAfter.add(withdrawCost).sub(lockedBalance);
 
         soma.eq(initialEthAmount);
-        const underlyingBalanceFinal = await puteth.methods
+        const underlyingBalanceFinal = await poheth.methods
           .underlyingBalance()
           .call();
         underlyingBalanceFinal.should.be.eq("0");
@@ -410,8 +410,8 @@ contract("PutETH", function(accounts) {
       it("should allow withdraw a mix of locked strike asset and asset with was exercised by another user", async function() {
         // 1) SellerAddress -> Mint 1 OPT locking 270 DAIs
         // 2) SellerAddress -> Send 0.5 OPT to AnotherAddress
-        // 3) AnotherAddress -> Exchange 0.5 OPT + 0.5 ETH with puteth and receives 135 DAI
-        // 4) locked at puteth: 0.5 ETH and 135 DAI
+        // 3) AnotherAddress -> Exchange 0.5 OPT + 0.5 ETH with poheth and receives 135 DAI
+        // 4) locked at poheth: 0.5 ETH and 135 DAI
         // 5) System -> forceExpiration()
         // 6) SellerAddress -> Withdraw (his lockedBalance: 1 option)
         // 7) Contract -> Sends -> 0.5 ETH + 135 DAI
@@ -422,7 +422,7 @@ contract("PutETH", function(accounts) {
         await checkBalances(sellerAddress, (1e18).toString(), "0", null);
 
         // Transfer 1 option to DAI holder
-        await puteth.methods
+        await poheth.methods
           .transfer(anotherSellerHolder, (5e17).toString())
           .send({ from: sellerAddress });
 
@@ -432,7 +432,7 @@ contract("PutETH", function(accounts) {
         const initialEthAmount = await ZWeb3.getBalance(sellerAddress).then(
           balance => new BN(balance)
         );
-        const exchangeTx = await puteth.methods.exchange().send({ from: anotherSellerHolder, value: (5e17).toString() });
+        const exchangeTx = await poheth.methods.exchange().send({ from: anotherSellerHolder, value: (5e17).toString() });
         const exchangeCost = await txCost(exchangeTx)
         const finalEthAmount = initialEthAmount.sub(new BN((5e17).toString())).sub(exchangeCost).toString()
         await checkBalances(anotherSellerHolder, "0", (135e18).toString(), finalEthAmount);
@@ -441,13 +441,13 @@ contract("PutETH", function(accounts) {
         await forceExpiration();
 
         //Checks contract balance
-        const underlyingBalance = await puteth.methods.strikeBalance().call()
+        const underlyingBalance = await poheth.methods.strikeBalance().call()
 
         // Withdraw mixed balance
         const initialEthAmount2 = await ZWeb3.getBalance(sellerAddress).then(
           balance => new BN(balance)
         );
-        const withdrawTx = await puteth.methods.withdraw().send({ from: sellerAddress });
+        const withdrawTx = await poheth.methods.withdraw().send({ from: sellerAddress });
         const withdrawTxCost = await txCost(withdrawTx)
         const finalEthAmount2 = initialEthAmount2.sub(withdrawTxCost).add(new BN(underlyingBalance))
         
