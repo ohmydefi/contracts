@@ -4,7 +4,7 @@ const BN = require("bn.js");
 
 ZWeb3.initialize(web3.currentProvider);
 
-const CallETH = Contracts.getFromLocal("CallETH");
+const CohETH = Contracts.getFromLocal("CohETH");
 const StandaloneERC20 = Contracts.getFromNodeModules(
   "@openzeppelin/contracts-ethereum-package",
   "StandaloneERC20"
@@ -12,10 +12,10 @@ const StandaloneERC20 = Contracts.getFromNodeModules(
 
 require("chai").should();
 
-contract("CallETH", function(accounts) {
+contract("CohETH", function(accounts) {
   const ethAddress = '0x0000000000000000000000000000000000000000'
   let mockStrikeAsset;
-  let calleth;
+  let coheth;
 
   let sellerAddress;
   let buyerAddress;
@@ -41,7 +41,7 @@ contract("CallETH", function(accounts) {
       ]
     });
 
-    calleth = await this.project.createProxy(CallETH, {
+    coheth = await this.project.createProxy(CohETH, {
       initMethod: "initializeInTestMode",
       initArgs: [
         "cohETH:STRIKE",
@@ -56,7 +56,7 @@ contract("CallETH", function(accounts) {
 
   async function checkBalances(account, options, strikeAsset, underlyingAsset) {
     if (options !== null) {
-      const optionsBalance = await calleth.methods.balanceOf(account).call();
+      const optionsBalance = await coheth.methods.balanceOf(account).call();
       optionsBalance.should.be.equal(options);
     }
 
@@ -95,7 +95,7 @@ contract("CallETH", function(accounts) {
     // await checkBalances(daiHolder, "0", "0", "100000000000000000000");
 
     const currentETHAmount = await ZWeb3.getBalance(sellerAddress);
-    await calleth.methods
+    await coheth.methods
       .mint()
       .send({ from: sellerAddress, value: (1e18).toString() });
 
@@ -112,7 +112,7 @@ contract("CallETH", function(accounts) {
     await checkBalances(sellerAddress, "0", (270e18).toString(), null);
     // await checkBalances(daiHolder, "0", "0", "100000000000000000000");
 
-    await calleth.methods
+    await coheth.methods
       .mint()
       .send({ from: sellerAddress, value: (1e17).toString() });
 
@@ -127,14 +127,14 @@ contract("CallETH", function(accounts) {
 
   describe("general checks", function() {
     it("should have 18 fixed decimals", async function() {
-      const decimals = await calleth.methods.decimals().call();
+      const decimals = await coheth.methods.decimals().call();
       decimals.should.be.equals("18");
     });
   });
 
   describe("before expiration", function() {
     afterEach(async function() {
-      const expired = await calleth.methods.hasExpired().call();
+      const expired = await coheth.methods.hasExpired().call();
       expired.should.be.false;
     });
 
@@ -147,7 +147,7 @@ contract("CallETH", function(accounts) {
         await mintOptions();
 
         // Check locked balances
-        const underlyingBalance = await calleth.methods
+        const underlyingBalance = await coheth.methods
           .underlyingBalance()
           .call();
         underlyingBalance.should.be.equal((1e18).toString());
@@ -163,7 +163,7 @@ contract("CallETH", function(accounts) {
         await mintOptionsDecimals();
 
         // Check locked balances
-        const underlyingBalance = await calleth.methods
+        const underlyingBalance = await coheth.methods
           .underlyingBalance()
           .call();
         underlyingBalance.should.be.equal((1e17).toString());
@@ -185,7 +185,7 @@ contract("CallETH", function(accounts) {
           initialEthAmount.toString()
         );
 
-        const burnTx = await calleth.methods
+        const burnTx = await coheth.methods
           .burn((1e18).toString())
           .send({ from: sellerAddress });
 
@@ -214,7 +214,7 @@ contract("CallETH", function(accounts) {
           await mintOptions();
 
           // Give 0.5 unit of OPT to another holder
-          await calleth.methods
+          await coheth.methods
             .transfer(anotherRandomAddress, (5e17).toString())
             .send({ from: sellerAddress });
 
@@ -222,7 +222,7 @@ contract("CallETH", function(accounts) {
 
           let failed = false;
           try {
-            await calleth.methods.burn((1e18).toString()).send({ from: sellerAddress });
+            await coheth.methods.burn((1e18).toString()).send({ from: sellerAddress });
           } catch (err) {
             failed = true;
           }
@@ -240,7 +240,7 @@ contract("CallETH", function(accounts) {
             initialEthAmount.toString()
           );
   
-          const burnTx = await calleth.methods
+          const burnTx = await coheth.methods
             .burn((5e17).toString())
             .send({ from: sellerAddress });
   
@@ -266,7 +266,7 @@ contract("CallETH", function(accounts) {
 
         //approve strikeAsset before exchanging
         await mockStrikeAsset.methods
-          .approve(calleth.address, (270e18).toString())
+          .approve(coheth.address, (270e18).toString())
           .send({ from: sellerAddress });
 
         await checkBalances(
@@ -275,7 +275,7 @@ contract("CallETH", function(accounts) {
           (270e18).toString(),
           null
         );
-        await calleth.methods.exchange(amount).send({ from: sellerAddress });
+        await coheth.methods.exchange(amount).send({ from: sellerAddress });
         await checkBalances(sellerAddress, "0", "0", null);
         // await checkBalances(daiHolder, "0", "1000001", "99000000000000000000");
       }
@@ -287,10 +287,10 @@ contract("CallETH", function(accounts) {
       // it("should be some locked underlying asset after exchange", async function() {
       //   await exchangeOptions(amount);
 
-      //   const underlyingBalance = await calleth.methods.underlyingBalance().call();
+      //   const underlyingBalance = await coheth.methods.underlyingBalance().call();
       //   underlyingBalance.should.be.equal((1e18).toString());
 
-      //   const strikeBalance = await calleth.methods.strikeBalance().call();
+      //   const strikeBalance = await coheth.methods.strikeBalance().call();
       //   strikeBalance.should.be.equal("0");
 
       // });
@@ -299,7 +299,7 @@ contract("CallETH", function(accounts) {
     it("can't withdraw", async function() {
       let failed = false;
       try {
-        await calleth.methods.withdraw().send({ from: sellerAddress });
+        await coheth.methods.withdraw().send({ from: sellerAddress });
       } catch (err) {
         failed = true;
       }
@@ -312,8 +312,8 @@ contract("CallETH", function(accounts) {
      * Utility function to force the series expiration for these tests
      */
     async function forceExpiration() {
-      await calleth.methods.forceExpiration().send({ from: sellerAddress });
-      const expired = await calleth.methods.hasExpired().call();
+      await coheth.methods.forceExpiration().send({ from: sellerAddress });
+      const expired = await coheth.methods.hasExpired().call();
       expired.should.be.true;
     }
 
@@ -324,7 +324,7 @@ contract("CallETH", function(accounts) {
         await forceExpiration();
         let failed = false;
         try {
-          await calleth.methods
+          await coheth.methods
             .mint((1e18).toString())
             .send({ from: sellerAddress });
         } catch (err) {
@@ -339,7 +339,7 @@ contract("CallETH", function(accounts) {
         await mintOptions();
         await forceExpiration();
 
-        await calleth.methods
+        await coheth.methods
           .transfer(anotherRandomAddress, (1e18).toString())
           .send({ from: sellerAddress });
       });
@@ -348,17 +348,17 @@ contract("CallETH", function(accounts) {
         await mintOptions();
         await forceExpiration();
 
-        await calleth.methods
+        await coheth.methods
           .approve(anotherRandomAddress, (270e18).toString())
           .send({ from: sellerAddress });
 
-        // const amountAllowed = await calleth.methods
+        // const amountAllowed = await coheth.methods
         //   .allowance(sellerAddress, anotherRandomAddress)
         //   .scall();
 
         // console.log("amountAllowed", amountAllowed);
 
-        await calleth.methods
+        await coheth.methods
           .transferFrom(sellerAddress, anotherRandomAddress, (1e18).toString())
           .send({ from: anotherRandomAddress });
       });
@@ -367,13 +367,13 @@ contract("CallETH", function(accounts) {
     describe("should allow withdraw", function() {
       it("should allow withdraw with no balance", async function() {
         await forceExpiration();
-        await calleth.methods.withdraw().send({ from: sellerAddress });
+        await coheth.methods.withdraw().send({ from: sellerAddress });
         await checkBalances(sellerAddress, "0", (270e18).toString(), null);
       });
 
       it("should allow withdraw locked asset with no holding options", async function() {
         await mintOptions();
-        await calleth.methods
+        await coheth.methods
           .transfer(anotherRandomAddress, (1e18).toString())
           .send({ from: sellerAddress });
 
@@ -388,7 +388,7 @@ contract("CallETH", function(accounts) {
         const initialEthAmount = await ZWeb3.getBalance(sellerAddress).then(
           balance => new BN(balance)
         );
-        const withdrawTx = await calleth.methods
+        const withdrawTx = await coheth.methods
           .withdraw()
           .send({ from: sellerAddress });
         const withdrawTxCost = await txCost(withdrawTx);
@@ -413,7 +413,7 @@ contract("CallETH", function(accounts) {
         await mintOptions();
 
         // Transfer 1 option to anotherRandomAddress
-        await calleth.methods
+        await coheth.methods
           .transfer(anotherRandomAddress, (1e18).toString())
           .send({ from: sellerAddress });
 
@@ -422,36 +422,36 @@ contract("CallETH", function(accounts) {
           .send({ from: sellerAddress });
 
         // Exercise the option
-        // 1) Approve calleth.address to transfer funds for anotherRandomAddress
+        // 1) Approve coheth.address to transfer funds for anotherRandomAddress
         await mockStrikeAsset.methods
-          .approve(calleth.address, (300e18).toString())
+          .approve(coheth.address, (300e18).toString())
           .send({ from: anotherRandomAddress });
 
         // 2) Exchange calling with the amount of options tokens to exchange
-        await calleth.methods
+        await coheth.methods
           .exchange((1e18).toString())
           .send({ from: anotherRandomAddress });
 
         const strikeAssetHoldByCall = await mockStrikeAsset.methods
-          .balanceOf(calleth.address)
+          .balanceOf(coheth.address)
           .call();
         strikeAssetHoldByCall.should.be.equal((270e18).toString());
 
-        const callEthStrikeAssetBalance = await calleth.methods
+        const callEthStrikeAssetBalance = await coheth.methods
           .strikeBalance()
           .call();
         callEthStrikeAssetBalance.should.be.equal(strikeAssetHoldByCall);
 
         await forceExpiration();
 
-        await calleth.methods.withdraw().send({ from: sellerAddress });
+        await coheth.methods.withdraw().send({ from: sellerAddress });
         await checkBalances(sellerAddress, "0", (270e18).toString(), null);
       });
 
       it("should allow withdraw a mix of locked strike asset and asset with was exercised by another user", async function() {
         // 1) SellerAddress -> Mint 1 OPT locking 1 ETH
         // 2) SellerAddress -> Send 0.5 OPT to AnotherAddress
-        // 3) AnotherAddress -> Exchange 0.5 OPT + 135 DAI with calleth and receives 0.5 ETH
+        // 3) AnotherAddress -> Exchange 0.5 OPT + 135 DAI with coheth and receives 0.5 ETH
         // 4) locked at callth: 0.5 ETH and 135 DAI
         // 5) System -> forceExpiration()
         // 6) SellerAddress -> Withdraw (his lockedBalance: 1 option)
@@ -464,7 +464,7 @@ contract("CallETH", function(accounts) {
           balance => new BN(balance)
         );
         const ethAmountToLock = (1e18).toString();
-        const mintTx = await calleth.methods
+        const mintTx = await coheth.methods
           .mint()
           .send({ from: sellerAddress, value: ethAmountToLock });
 
@@ -485,7 +485,7 @@ contract("CallETH", function(accounts) {
           .transfer(anotherRandomAddress, (270e18).toString())
           .send({ from: sellerAddress });
         //3 Transfer 1 OPT to AnotherRandomAddress
-        await calleth.methods
+        await coheth.methods
           .transfer(anotherRandomAddress, (1e18).toString())
           .send({ from: sellerAddress });
 
@@ -497,16 +497,16 @@ contract("CallETH", function(accounts) {
         );
 
         // Exercise only 0.5 OPT
-        //4 Approve calleth to transfer funds to anotherRandomAddress
+        //4 Approve coheth to transfer funds to anotherRandomAddress
         await mockStrikeAsset.methods
-          .approve(calleth.address, (300e18).toString())
+          .approve(coheth.address, (300e18).toString())
           .send({ from: anotherRandomAddress });
 
         const initialEthAmount2 = await ZWeb3.getBalance(
           anotherRandomAddress
         ).then(balance => new BN(balance));
 
-        const exchangeTx = await calleth.methods
+        const exchangeTx = await coheth.methods
           .exchange((5e17).toString())
           .send({ from: anotherRandomAddress });
 
@@ -529,7 +529,7 @@ contract("CallETH", function(accounts) {
         const initialEthAmount3 = await ZWeb3.getBalance(sellerAddress).then(
           balance => new BN(balance)
         );
-        const withdrawTx = await calleth.methods
+        const withdrawTx = await coheth.methods
           .withdraw()
           .send({ from: sellerAddress });
         const withdrawTxCost = await txCost(withdrawTx);
